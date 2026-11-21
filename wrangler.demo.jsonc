@@ -1,0 +1,19 @@
+{
+  "name": "tabetsuna-demo",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-10-30",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./public",
+    "run_worker_first": ["/api", "/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DEMO_DB",
+      "database_name": "tabetsuna-demo",
+      "database_id": "0f6d53f2-57f9-4625-96c5-f2534f1b1c49"
+    }
+  ]
+}

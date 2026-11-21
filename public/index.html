@@ -77,6 +77,11 @@
   .rule { margin-top:12px; padding:9px 12px; color:var(--brand-dark); font-size:.94rem; background:var(--soft); border-radius:11px; }
   .account-page { max-width:590px; margin-inline:auto; }
   .account-form { padding:19px 20px 20px; }
+  .demo-access { margin-top:16px; }
+  .demo-accounts { padding:16px 20px; }
+  .demo-accounts dt { font-weight:750; }
+  .demo-accounts dd { margin:0 0 8px; }
+  .demo-access a { text-decoration:none; }
   .address-fields { display:grid; gap:11px; }
   .address-fields legend { color:var(--ink); font-size:1.05rem; }
   .postal-message:empty, .postal-choices[hidden] { display:none; }
@@ -261,7 +266,7 @@ const setupToken = new URLSearchParams(window.location.hash.slice(1)).get('setup
 let snapshotVersion = 0;
 let pendingRequests = 0;
 const state = {
-  page:'login', role:null, organization:null, sites:[], site:'suga', manager:false, mustChange:false,
+  page:'login', role:null, organization:null, sites:[], site:'suga', manager:false, mustChange:false, demo:null,
   use:today, tab:'stock', month:today.slice(0,7)+'-01', quantities:new Map(), selection:new Map()
 };
 const main = document.querySelector('#main');
@@ -308,7 +313,9 @@ function startPage() {
 async function refreshData() {
   const version = ++snapshotVersion;
   const snapshot = await api('state');
-  return version === snapshotVersion ? loadSnapshot(snapshot) : Boolean(state.role);
+  if (version !== snapshotVersion) return Boolean(state.role);
+  state.demo = snapshot.demo ?? null;
+  return loadSnapshot(snapshot);
 }
 function announce(message) {
   clearTimeout(timer);
@@ -342,15 +349,26 @@ const heading = (title, detail, showOrg = false) => '<div class="intro">'+(showO
 const locationLabel = profile => escapeHtml(profile.prefecture + profile.city);
 const addressLabel = profile => (profile.postalCode ? '〒'+escapeHtml(displayPostalCode(profile.postalCode))+' ' : '')+
   escapeHtml(profile.prefecture + profile.city + (profile.address || ''));
+function demoAccess() {
+  if (!state.demo) {
+    return '<p class="demo-access"><a class="btn wide" href="https://tabetsuna-demo.kodomojyanaimon.workers.dev/">デモを試す</a></p>';
+  }
+  const accounts = state.demo.accounts.map(([label, id]) =>
+    '<dt>'+escapeHtml(label)+'</dt><dd><code>'+escapeHtml(id)+'</code></dd>').join('');
+  return '<div class="panel demo-access demo-accounts"><strong>デモ用のログイン情報</strong><dl>'+accounts+
+    '<dt>共通パスワード</dt><dd><code>'+escapeHtml(state.demo.password)+'</code></dd></dl>'+
+    '<a href="https://tabetsuna.kodomojyanaimon.workers.dev/">運用版を開く</a></div>';
+}
 function login() {
   const initializing = state.page === 'setup';
-  return '<section class="account-page">'+heading(initializing ? '管理者の初期設定' : 'ログイン',
+  return '<section class="account-page">'+heading(initializing ? '管理者の初期設定' : state.demo ? 'デモにログイン' : 'ログイン',
     initializing ? '管理者IDと12文字以上のパスワードを設定してください。' : 'IDとパスワードを入力してください。')+
     '<form class="panel form account-form" id="'+(initializing ? 'setup-form' : 'login-form')+'">'+
     '<label class="field">ID<input name="login" required maxlength="40" autocapitalize="none" spellcheck="false" autocomplete="username"></label>'+
     '<label class="field">パスワード<input name="password" type="password" required maxlength="128" '+
       (initializing ? 'minlength="12" autocomplete="new-password"' : 'autocomplete="current-password"')+'></label>'+
-    '<p class="error" role="alert"></p><button class="btn primary wide" type="submit">'+(initializing ? '管理者を登録する' : 'ログイン')+'</button></form></section>';
+    '<p class="error" role="alert"></p><button class="btn primary wide" type="submit">'+(initializing ? '管理者を登録する' : 'ログイン')+'</button></form>'+
+    (initializing ? '' : demoAccess())+'</section>';
 }
 function passwordPage() {
   return '<section class="account-page">'+heading('パスワードを変更する',
@@ -585,7 +603,7 @@ function admin() {
     tabs.map(([id,label]) => '<button type="button" data-action="admin-tab" data-id="'+id+'" aria-pressed="'+(state.tab === id)+'">'+label+'</button>').join('')+
     '</div>'+(isOrganizations ? '' : '<span class="count">'+locations[state.site]+' · '+rows.length+rowsUnit+'</span>')+'</div>'+
     (isStock ? registerForm() : '')+
-    (isOrganizations && state.manager ? issueAccount(false)+issueAccount(true) : '')+
+    (isOrganizations && state.manager && !state.demo ? issueAccount(false)+issueAccount(true) : '')+
     (rows.length ? '<div class="stack">'+rows.join('')+'</div>' : empty(isStock ? 'この拠点には登録された食品がありません。' : 'この拠点には予約がありません。'));
 }
 function allowedRoutes() {
@@ -602,9 +620,12 @@ function render() {
   nav.innerHTML = allowedRoutes().map(([page,symbol,label]) => '<button type="button" data-action="navigate" data-id="'+page+'"'+
     (state.page === page ? ' aria-current="page"':'')+'>'+icon(symbol)+label+'</button>').join('')+
     (state.role ? '<button type="button" data-action="logout">'+icon('logout')+'ログアウト</button>' : '');
-  main.innerHTML = {login,setup:login,password:passwordPage,profile,home,history:reservationHistory,admin}[state.page]();
+  const demoNotice = state.demo
+    ? '<p class="rule"><strong>デモ環境</strong>　試作用の共有データです。入力には架空の情報をお使いください。</p>'
+    : '';
+  main.innerHTML = demoNotice + {login,setup:login,password:passwordPage,profile,home,history:reservationHistory,admin}[state.page]();
   const footer = document.querySelector('footer');
-  footer.innerHTML = '<p>たべつな</p>'+(state.role && !state.mustChange
+  footer.innerHTML = '<p>たべつな</p>'+(state.role && !state.mustChange && !state.demo
     ? '<button type="button" data-action="password">パスワード変更</button>' : '');
   document.body.classList.toggle('has-selection',state.page === 'home' && state.selection.size > 0);
 }
@@ -1129,7 +1150,7 @@ async function initialize() {
       navigate(startPage());
       return;
     }
-    state.page = setupToken ? 'setup' : 'login';
+    state.page = setupToken && !state.demo ? 'setup' : 'login';
     render();
   } catch (error) {
     state.page = 'login';
