@@ -2,6 +2,8 @@
 
 子ども食堂と受取拠点のスタッフで、食品の在庫と予約を共有するアプリです。画面とAPIをCloudflare Workersで配信し、データをCloudflare D1に保存します。
 
+[たべつな 運用版を開く](https://tabetsuna.kodomojyanaimon.workers.dev)
+
 ## ローカルで試す
 
 ```sh
