@@ -1,23 +1,36 @@
 # たべつな
 
-子ども食堂向けの食品予約プロトタイプです。団体情報の登録から、食品の予約、受取拠点での準備・引き渡しまで試せます。
+子ども食堂と受取拠点のスタッフで、食品の在庫と予約を共有するアプリです。画面とAPIをCloudflare Workersで配信し、データをCloudflare D1に保存します。
 
-## 開き方
+[たべつな 運用版を開く](https://tabetsuna.kodomojyanaimon.workers.dev)
 
-リポジトリの `index.html` を端末に保存し、ブラウザで開きます。住所検索も含め、オフラインで動作します。
+## ローカルで試す
 
-| 役割 | 試用ID | 試用パスワード |
-| --- | --- | --- |
-| ひだまり子ども食堂 | `hidamari` | `demo2026` |
-| あおぞら子ども食堂 | `aozora` | `demo2026` |
-| 拠点スタッフ | `staff` | `demo2026` |
+```sh
+npm ci
+npm test
+npm run db:local
+npm run dev
+```
 
-## 試せる操作
+別のターミナルで `npm run setup -- --local` を実行し、表示された初期設定リンクで管理者IDとパスワードを設定します。
 
-- **団体情報の登録**。郵便番号を7桁入力すると都道府県・市区町村・町名が入ります。番地・建物名と担当者名を入力します。栃木県は豆心フーズ（佐野）、埼玉県は須賀食品に割り当てられます。
-- **まとめて予約**。利用予定日を選び、数量を決めて商品を追加します。「まとめて予約」から確認・確定できます。
-- **準備と引き渡し**。管理画面の「予約状況」で団体・引き渡し日時ごとの商品を確認します。全品にチェックを入れると「引き渡し完了」を押せます。
+## Cloudflareで運用する
 
-ログインは試作用です。登録内容や予約は、操作したブラウザ内に保存されます。架空の住所・担当者名でお試しください。
+1. `npx wrangler login` で、公開先のCloudflareアカウントを承認します。
+2. `npm run deploy` でWorkerを作成します。設定は `wrangler.jsonc` の `DB` にD1データベース `tabetsuna` を割り当てます。
+3. `npm run db:remote` でD1にテーブルを作成します。
+4. `npm run setup -- --remote https://実際のWorkerのURL` で初期設定リンクを発行し、最初の管理者を登録します。リンクは30分有効で、管理者を登録すると使用済みになります。初期設定リンクは管理者本人が使ってください。
 
-住所の郵便番号は日本郵便の2026年10月30日更新分を使用しています。[日本郵便の住所データ](https://www.post.japanpost.jp/service/search/zipcode/download/utf-zip.html)
+GitHubからの自動配信を設定する場合は、Cloudflare の **Workers & Pages → tabetsuna → Settings → Builds → Connect** で `furusapo/tamatsuna` を選びます。D1のマイグレーションは、変更を確認してから `npm run db:remote` で反映します。[WorkersのGitHub連携](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/) · [D1のマイグレーション](https://developers.cloudflare.com/d1/reference/migrations/)
+
+## 管理者・団体・スタッフ
+
+- **管理者**は「団体一覧」で子ども食堂と拠点スタッフのIDを発行します。
+- **子ども食堂と拠点スタッフ**は仮パスワードでログインし、初回にパスワードを変更します。
+- **子ども食堂**は団体情報を登録すると、住所の都道府県に応じて栃木県は豆心フーズ（佐野）、埼玉県は須賀食品に割り当てられます。自団体の予約の確認とキャンセルができます。
+- **拠点スタッフ**は担当拠点の在庫と予約を管理します。準備にチェックを入れてから、団体・日時ごとに引き渡しを完了します。
+
+パスワードはscryptで照合用のハッシュを作成し、D1に保存します。アプリは同一オリジンのセッションCookieを使い、サーバーで操作権限を確認します。ブラウザ保存版で操作したサンプルデータは、運用開始時には別扱いです。
+
+郵便番号の住所データは日本郵便の2026年10月30日更新分です。[日本郵便の住所データ](https://www.post.japanpost.jp/service/search/zipcode/download/utf-zip.html)
