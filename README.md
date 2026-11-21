@@ -4,6 +4,20 @@
 
 [たべつな 運用版を開く](https://tabetsuna.kodomojyanaimon.workers.dev)
 
+## デモ
+
+[運用版と同じ画面のデモを開く](https://tabetsuna-demo.kodomojyanaimon.workers.dev)
+
+子ども食堂は `hidamari`（須賀食品）または `aozora`（豆心フーズ）、スタッフは `staff` でログインします。共通の試作用パスワードはデモのログイン画面に表示します。デモ専用D1の在庫、予約、団体情報は利用者間で共有され、日本時間で日付が変わると次の画面更新時に初期化されます。共通IDは固定で、パスワード変更と新規IDの発行は運用版で行います。
+
+デモを初めてセットアップする場合は、専用DBの名前と設定ファイルを指定して初期化します。
+
+```sh
+npx wrangler d1 migrations apply tabetsuna-demo --remote --config wrangler.demo.jsonc
+npx wrangler d1 execute tabetsuna-demo --remote --config wrangler.demo.jsonc --file demo/initialize.sql
+npx wrangler deploy --config wrangler.demo.jsonc
+```
+
 ## ローカルで試す
 
 ```sh

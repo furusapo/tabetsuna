@@ -1,4 +1,5 @@
 import { digest, hashPassword, randomToken, sessionCookie, sessionLifetime, sessionToken, verifyPassword } from './security.mjs';
+import { demoLogin, refreshDemo } from './demo.mjs';
 
 const sites = ['suga', 'sano'];
 const slots = ['10:00〜12:00', '14:00〜16:00'];
@@ -127,12 +128,12 @@ async function startSession(db, account, request) {
   return result(await snapshot(db, account), 200, { 'Set-Cookie': sessionCookie(token, sessionLifetime) });
 }
 
-async function login(db, request) {
+async function login(db, request, demo) {
   const body = await jsonBody(request);
   const id = typeof body.login === 'string' ? body.login.trim().toLowerCase() : '';
   requireThat(validLogin(id) && hasText(body.password, 128), 'IDまたはパスワードを確認してください。', 401);
   await limitAttempts(db, request, 'login', 18);
-  await limitAttempts(db, request, 'login-account:' + id, 18, false);
+  if (!demo) await limitAttempts(db, request, 'login-account:' + id, 18, false);
   const account = await db.prepare(`SELECT a.*, o.site AS member_site FROM accounts a
     LEFT JOIN organizations o ON o.id = a.organization_id WHERE a.login = ?`).bind(id).first();
   const valid = await verifyPassword(body.password, account?.password_hash);
@@ -298,15 +299,25 @@ async function handoff(db, account, body) {
 }
 
 async function api(request, env, url) {
-  const db = env.DB;
+  const demo = Boolean(env.DEMO_DB);
+  if (demo && env.DB) throw new Error('Demo and production databases must be bound to separate Workers');
+  const db = demo ? env.DEMO_DB : env.DB;
   const route = request.method + ' ' + url.pathname;
   if (request.method !== 'GET') {
     requireThat(request.headers.get('Origin') === url.origin, 'ページを開き直してください。', 403);
   }
-  if (route === 'POST /api/login') return login(db, request);
+  if (demo) {
+    requireThat(!['POST /api/setup', 'PUT /api/password', 'POST /api/accounts'].includes(route),
+      'デモでは、共通の試作用アカウントをご利用ください。', 403);
+    if (route === 'GET /api/state' || route === 'POST /api/login') await refreshDemo(db, today());
+  }
+  if (route === 'POST /api/login') return login(db, request, demo);
   if (route === 'POST /api/setup') return setup(db, request);
   const account = await accountFor(db, request);
-  if (route === 'GET /api/state') return result(account ? await snapshot(db, account) : { session: null });
+  if (route === 'GET /api/state') {
+    const data = account ? await snapshot(db, account) : { session: null };
+    return result(demo ? { ...data, demo: demoLogin } : data);
+  }
   if (route === 'POST /api/logout') {
     if (account) await db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(account.session_hash).run();
     return result({ session: null }, 200, { 'Set-Cookie': sessionCookie() });
