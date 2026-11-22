@@ -36,7 +36,7 @@ npm run dev
 3. `npm run db:remote` でD1にテーブルを作成します。
 4. `npm run setup -- --remote https://実際のWorkerのURL` で初期設定リンクを発行し、最初の管理者を登録します。リンクは30分有効で、管理者を登録すると使用済みになります。初期設定リンクは管理者本人が使ってください。
 
-GitHubからの自動配信を設定する場合は、Cloudflare の **Workers & Pages → tabetsuna → Settings → Builds → Connect** で `furusapo/tamatsuna` を選びます。D1のマイグレーションは、変更を確認してから `npm run db:remote` で反映します。[WorkersのGitHub連携](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/) · [D1のマイグレーション](https://developers.cloudflare.com/d1/reference/migrations/)
+GitHubからの自動配信を設定する場合は、Cloudflare の **Workers & Pages → tabetsuna → Settings → Builds → Connect** で `furusapo/tabetsuna` を選びます。D1のマイグレーションは、変更を確認してから `npm run db:remote` で反映します。[WorkersのGitHub連携](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/) · [D1のマイグレーション](https://developers.cloudflare.com/d1/reference/migrations/)
 
 ## 管理者・団体・スタッフ
 
