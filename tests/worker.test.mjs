@@ -147,6 +147,13 @@ test('Demo accounts share sample bookings and stay usable across daily resets', 
   const [hidamari, aozora, staff] = await Promise.all(accounts.map(async ([, login]) => {
     const res = await request('login', { method: 'POST', body: { login, password } });
     assert.equal(res.status, 200, await res.clone().text());
+    const { products } = await res.json();
+    assert.ok(products.length > 0);
+    for (const { photo } of products) {
+      assert.match(photo, /^\/demo-foods\/[a-z]+\.webp$/);
+      const image = await readFile('public' + photo);
+      assert.equal(image.toString('ascii',8,12), 'WEBP');
+    }
     return res.headers.get('Set-Cookie').split(';')[0];
   }));
   assert.deepEqual((await state(hidamari)).session.sites, ['suga']);
@@ -172,6 +179,7 @@ test('Demo accounts share sample bookings and stay usable across daily resets', 
   const [nextMember, nextStaff] = await Promise.all([state(aozora), state(staff)]);
   assert.equal(nextMember.products.find(item => item.name === food.name).stock, food.stock);
   assert.equal(nextStaff.products.length, 6);
+  assert.equal(nextStaff.products.filter(item => item.photo.startsWith('/demo-foods/')).length, 6);
   assert.equal(nextStaff.bookings.length, 0);
 });
 

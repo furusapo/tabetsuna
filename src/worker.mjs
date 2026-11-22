@@ -1,5 +1,5 @@
 import { digest, hashPassword, randomToken, sessionCookie, sessionLifetime, sessionToken, verifyPassword } from './security.mjs';
-import { demoLogin, refreshDemo } from './demo.mjs';
+import { demoLogin, refreshDemo, withDemoPhoto } from './demo.mjs';
 
 const sites = ['suga', 'sano'];
 const slots = ['10:00〜12:00', '14:00〜16:00'];
@@ -77,7 +77,7 @@ function staffSite(account, site) {
   requireThat(siteList(account).includes(site), 'この拠点を操作する権限がありません。', 403);
 }
 
-async function snapshot(db, account) {
+async function snapshot(db, account, demo) {
   const staff = account.role === 'staff';
   const permitted = staff ? siteList(account) : [account.member_site];
   const [first, second = first] = permitted;
@@ -113,9 +113,10 @@ async function snapshot(db, account) {
       prefecture: org.prefecture, city: org.city, address: org.address,
       contactName: org.contact_name, postalCode: org.postal_code
     }]));
-  return { session, products, profiles, organizations, bookings: bookings.map(item => ({ ...item, prepared: Boolean(item.prepared) })) };
+  return { session, products: demo ? products.map(withDemoPhoto) : products, profiles, organizations,
+    bookings: bookings.map(item => ({ ...item, prepared: Boolean(item.prepared) })) };
 }
-async function startSession(db, account, request) {
+async function startSession(db, account, request, demo = false) {
   const token = randomToken();
   const now = seconds();
   const previous = sessionToken(request);
@@ -125,7 +126,7 @@ async function startSession(db, account, request) {
     db.prepare('DELETE FROM sessions WHERE account_login = ? AND expires_at <= ?').bind(account.login, now),
     db.prepare('INSERT INTO sessions VALUES (?, ?, ?)').bind(await digest(token), account.login, now + sessionLifetime)
   ]);
-  return result(await snapshot(db, account), 200, { 'Set-Cookie': sessionCookie(token, sessionLifetime) });
+  return result(await snapshot(db, account, demo), 200, { 'Set-Cookie': sessionCookie(token, sessionLifetime) });
 }
 
 async function login(db, request, demo) {
@@ -138,7 +139,7 @@ async function login(db, request, demo) {
     LEFT JOIN organizations o ON o.id = a.organization_id WHERE a.login = ?`).bind(id).first();
   const valid = await verifyPassword(body.password, account?.password_hash);
   requireThat(valid && account, 'IDまたはパスワードを確認してください。', 401);
-  return startSession(db, account, request);
+  return startSession(db, account, request, demo);
 }
 async function setup(db, request) {
   const body = await jsonBody(request);
@@ -315,7 +316,7 @@ async function api(request, env, url) {
   if (route === 'POST /api/setup') return setup(db, request);
   const account = await accountFor(db, request);
   if (route === 'GET /api/state') {
-    const data = account ? await snapshot(db, account) : { session: null };
+    const data = account ? await snapshot(db, account, demo) : { session: null };
     return result(demo ? { ...data, demo: demoLogin } : data);
   }
   if (route === 'POST /api/logout') {

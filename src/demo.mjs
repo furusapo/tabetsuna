@@ -13,13 +13,21 @@ const profiles = [
 ];
 
 const foods = [
-  ['suga', 'たまご 10個入り', '賞味期限', 2, 18, 'パック'],
-  ['suga', 'キャベツ', '賞味期限', 6, 12, '玉'],
-  ['suga', 'にんじん', '賞味期限', 9, 24, '袋'],
-  ['suga', '木綿豆腐', '消費期限', 1, 8, '丁'],
-  ['sano', '食パン 6枚切り', '消費期限', 2, 14, '袋'],
-  ['sano', 'じゃがいも', '賞味期限', 10, 16, '袋']
+  ['suga', 'たまご 10個入り', 'eggs.webp', '賞味期限', 2, 18, 'パック'],
+  ['suga', 'キャベツ', 'cabbage.webp', '賞味期限', 6, 12, '玉'],
+  ['suga', 'にんじん', 'carrot.webp', '賞味期限', 9, 24, '袋'],
+  ['suga', '木綿豆腐', 'tofu.webp', '消費期限', 1, 8, '丁'],
+  ['sano', '食パン 6枚切り', 'bread.webp', '消費期限', 2, 14, '袋'],
+  ['sano', 'じゃがいも', 'potato.webp', '賞味期限', 10, 16, '袋']
 ];
+
+const demoPhotos = new Map(foods.map(([site, name, file]) =>
+  [site + ':' + name, '/demo-foods/' + file]));
+
+export function withDemoPhoto(product) {
+  const photo = demoPhotos.get(product.site + ':' + product.name);
+  return photo && !product.photo ? { ...product, photo } : product;
+}
 
 export async function refreshDemo(db, day) {
   const lastDay = await db.prepare('SELECT refreshed_on FROM demo_calendar WHERE id = 1').first('refreshed_on');
@@ -37,7 +45,7 @@ export async function refreshDemo(db, day) {
       SET prefecture = ?, city = ?, address = 'デモ町1-2-3', contact_name = 'デモ担当', postal_code = ?
       WHERE id = (SELECT organization_id FROM accounts WHERE login = ?) AND ${due}
     `).bind(prefecture, city, postalCode, login, day)),
-    ...foods.map(([site, name, kind, days, stock, unit]) => db.prepare(`
+    ...foods.map(([site, name, , kind, days, stock, unit]) => db.prepare(`
       INSERT INTO products(id, site, name, kind, expires, stock, unit)
       SELECT ?, ?, ?, ?, date(?, ?), ?, ? WHERE ${due}
     `).bind(crypto.randomUUID(), site, name, kind, day, '+' + days + ' days', stock, unit, day)),
