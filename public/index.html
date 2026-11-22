@@ -159,6 +159,7 @@
   .section-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:14px; }
   .tabs { display:flex; align-items:center; gap:4px; border:1px solid var(--line); border-radius:10px; background:white; padding:3px; }
   .admin-context { max-width:465px; padding:14px 17px; margin-bottom:16px; }
+  .demo-tools { margin-bottom:16px; }
   .register { margin-bottom:16px; }
   .register summary { padding:13px 16px; min-height:48px; font-weight:750; color:var(--brand-dark); cursor:pointer; }
   .form { padding:0 16px 16px; display:grid; gap:13px; }
@@ -303,6 +304,7 @@ function loadSnapshot(snapshot) {
   if (role === 'staff' && !sites.includes(state.site)) state.site = sites[0];
   data = {products:snapshot.products,bookings:snapshot.bookings,profiles:snapshot.profiles};
   organizations = snapshot.organizations;
+  if (state.demo && role === 'member') pruneSelection();
   return true;
 }
 function startPage() {
@@ -598,6 +600,7 @@ function admin() {
   const rowsUnit = isStock ? '件' : '団体';
   const tabs = [['stock','在庫一覧'],['bookings','予約状況'],['organizations','団体一覧']];
   return heading('管理画面','拠点の在庫、予約状況、団体の登録状況を確認できます。')+
+    (state.demo ? '<div class="demo-tools"><button type="button" class="btn danger" data-action="reset-demo">デモデータをリセット</button></div>' : '')+
     (isOrganizations ? '' : '<div class="panel admin-context">'+sites()+'</div>')+
     '<div class="section-bar"><div class="tabs" aria-label="管理メニュー">'+
     tabs.map(([id,label]) => '<button type="button" data-action="admin-tab" data-id="'+id+'" aria-pressed="'+(state.tab === id)+'">'+label+'</button>').join('')+
@@ -781,6 +784,22 @@ async function cancelReservation(id) {
     render();
     focus('#page-title');
     announce('予約をキャンセルし、在庫を戻しました。');
+  }
+}
+function confirmDemoReset(trigger) {
+  openDialog('デモデータをリセットしますか？',
+    '<p>両拠点のデモ予約を削除し、在庫と団体情報をサンプル状態に戻します。</p><p class="error" role="alert"></p>'+
+    '<div class="actions"><button type="button" class="btn" data-action="close" autofocus>戻る</button>'+
+    '<button type="button" class="btn danger" data-action="reset-demo-confirm">リセットする</button></div>',trigger);
+}
+async function resetDemo() {
+  await api('demo/reset','POST',{});
+  modal.close();
+  if (await refreshAfterSave()) {
+    state.tab = 'stock';
+    render();
+    focusHeading();
+    announce('デモデータをサンプル状態に戻しました。');
   }
 }
 function findAppointment(id) {
@@ -1123,6 +1142,8 @@ document.addEventListener('click', event => {
     case 'close': modal.close(); break;
     case 'cancel': cancel(getBooking(id),button); break;
     case 'cancel-confirm': void runButton(button,() => cancelReservation(id)); break;
+    case 'reset-demo': confirmDemoReset(button); break;
+    case 'reset-demo-confirm': void runButton(button,resetDemo); break;
     case 'handoff': void runButton(button,() => completeHandoff(id)); break;
     case 'admin-tab':
       if (state.role !== 'staff' || !['stock','bookings','organizations'].includes(id)) break;

@@ -326,6 +326,11 @@ async function api(request, env, url) {
   requireThat(account, 'ログインしてください。', 401);
   if (route === 'PUT /api/password') return changePassword(db, request, account, await jsonBody(request));
   requireThat(!account.must_change, '初回のパスワード変更を完了してください。', 403);
+  if (demo && route === 'POST /api/demo/reset') {
+    role(account, 'staff');
+    await refreshDemo(env.DEMO_DB, today(), { reset: true });
+    return empty();
+  }
   const photoId = request.method === 'GET' && url.pathname.match(/^\/api\/products\/([0-9a-f-]+)\/photo$/)?.[1];
   if (isUuid(photoId)) return foodPhoto(db, account, photoId);
   const cancelId = request.method === 'POST' && url.pathname.match(/^\/api\/bookings\/([0-9a-f-]+)\/cancel$/)?.[1];
