@@ -61,6 +61,7 @@ test('Worker and D1 share bookings between accounts and enforce roles and stock'
   const init = await send('setup',boot);
   const admin = sessionCookie(init);
   assert.equal((await init.json()).session.manager,true);
+  assert.equal((await send('demo/reset',{},admin)).status,404);
   assert.equal((await send('setup',boot)).status,403);
   assert.equal((await send('login',{login:'test-admin',password:'wrong'})).status,401);
   const member = await issueAndActivate({role:'member',login:'test-member',name:'検証用子ども食堂'},admin);
@@ -115,7 +116,7 @@ test('Worker and D1 share bookings between accounts and enforce roles and stock'
   assert.deepEqual(await state(member),{session:null});
 });
 
-test('Demo accounts share sample bookings and stay usable across daily resets', async t => {
+test('Staff can reset demo bookings, inventory and profiles while keeping demo sessions', async t => {
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: workerModules, compatibilityDate: '2026-10-30',
     compatibilityFlags: ['nodejs_compat'], d1Databases: { DEMO_DB: 'tabetsuna-demo-test' }
@@ -172,11 +173,35 @@ test('Demo accounts share sample bookings and stay usable across daily resets', 
   assert.equal(staffData.products.find(item => item.id === food.id).stock, food.stock - 1);
   assert.equal((await state(hidamari)).bookings.length, 0);
 
+  const reset = cookie => request('demo/reset', { method: 'POST', cookie, body: {} });
+  assert.equal((await reset()).status, 401);
+  assert.equal((await reset(aozora)).status, 403);
+  const sampleProfile = member.profiles[member.session.organization];
+  const updated = await request('profile', { method: 'PUT', cookie: aozora,
+    body: { ...sampleProfile, contactName: '変更した担当者' } });
+  assert.equal(updated.status, 204);
+  const added = await request('products', { method: 'POST', cookie: staff, body: {
+    site: 'suga', name: '検証用のお米', kind: '賞味期限', expires: today, stock: 3, unit: '袋'
+  } });
+  assert.equal(added.status, 204);
+  assert.equal((await state(staff)).products.length, 7);
+
+  const resetResult = await reset(staff);
+  assert.equal(resetResult.status, 204, await resetResult.text());
+  const resetMember = await state(aozora);
+  const resetStaff = await state(staff);
+  assert.equal(resetMember.session.login, 'aozora');
+  assert.deepEqual(resetMember.profiles[member.session.organization], sampleProfile);
+  assert.equal(resetMember.products.find(item => item.name === food.name).stock, food.stock);
+  assert.equal(resetStaff.products.length, 6);
+  assert.equal(resetStaff.bookings.length, 0);
+
   for (const [path, method] of [['password','PUT'], ['accounts','POST'], ['setup','POST']]) {
     assert.equal((await request(path, { method, cookie: staff, body: {} })).status, 403);
   }
   await db.prepare("UPDATE demo_calendar SET refreshed_on = '2000-01-01'").run();
   const [nextMember, nextStaff] = await Promise.all([state(aozora), state(staff)]);
+  assert.notEqual(nextMember.products[0].id, resetMember.products[0].id);
   assert.equal(nextMember.products.find(item => item.name === food.name).stock, food.stock);
   assert.equal(nextStaff.products.length, 6);
   assert.equal(nextStaff.products.filter(item => item.photo.startsWith('/demo-foods/')).length, 6);

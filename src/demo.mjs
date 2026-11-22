@@ -29,13 +29,14 @@ export function withDemoPhoto(product) {
   return photo && !product.photo ? { ...product, photo } : product;
 }
 
-export async function refreshDemo(db, day) {
+export async function refreshDemo(db, day, { reset = false } = {}) {
   const lastDay = await db.prepare('SELECT refreshed_on FROM demo_calendar WHERE id = 1').first('refreshed_on');
   if (lastDay === null) throw new Error('Demo database must be initialized before use');
-  if (lastDay >= day) return;
+  if (!reset && lastDay >= day) return;
 
-  // Recheck the date in the transaction so parallel requests can't reset new bookings.
-  const due = '(SELECT refreshed_on FROM demo_calendar WHERE id = 1) < ?';
+  // Automatic refreshes recheck the date in the transaction to avoid resetting twice.
+  const comparison = reset ? '<=' : '<';
+  const due = '(SELECT refreshed_on FROM demo_calendar WHERE id = 1) ' + comparison + ' ?';
   await db.batch([
     db.prepare('DELETE FROM bookings WHERE ' + due).bind(day),
     db.prepare('DELETE FROM booking_batches WHERE ' + due).bind(day),
@@ -49,6 +50,7 @@ export async function refreshDemo(db, day) {
       INSERT INTO products(id, site, name, kind, expires, stock, unit)
       SELECT ?, ?, ?, ?, date(?, ?), ?, ? WHERE ${due}
     `).bind(crypto.randomUUID(), site, name, kind, day, '+' + days + ' days', stock, unit, day)),
-    db.prepare('UPDATE demo_calendar SET refreshed_on = ? WHERE id = 1 AND refreshed_on < ?').bind(day, day)
+    db.prepare('UPDATE demo_calendar SET refreshed_on = ? WHERE id = 1 AND refreshed_on ' + comparison + ' ?')
+      .bind(day, day)
   ]);
 }
